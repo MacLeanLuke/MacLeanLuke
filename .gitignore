@@ -1,0 +1,81 @@
+# ==============================================================================
+# Deny by default.
+#
+# This repository is a PUBLIC GitHub profile. The blast radius of an accidental
+# `git add -A` here is "the entire internet, permanently, and mirrored by
+# scrapers within the hour." So the rule is inverted from a normal project:
+# nothing is trackable unless it is named in the allowlist below.
+#
+# Adding a new kind of file is a deliberate act. Two edits, on purpose:
+#   1. add the pattern to the ALLOWLIST section here
+#   2. add it to ALLOWED_PATHS in scripts/guard.sh
+# ==============================================================================
+
+# Ignore everything...
+*
+# ...but still descend into directories, so allowlisted files inside them are
+# reachable. Git will not look inside an ignored directory at all otherwise.
+!*/
+
+# ------------------------------------------------------------------------------
+# ALLOWLIST — the complete set of things that may exist in this repo
+# ------------------------------------------------------------------------------
+!.gitignore
+!.gitattributes
+!README.md
+!LICENSE
+
+!/.github/CODEOWNERS
+!/.github/*.md
+!/.github/denylist.example.txt
+!/.github/workflows/*.yml
+
+!/.githooks/pre-commit
+!/scripts/*.sh
+
+!/assets/*.svg
+!/assets/*.png
+
+# ------------------------------------------------------------------------------
+# NEVER — belt and braces.
+#
+# The allowlist above already excludes these. This section exists so that if
+# someone later widens the allowlist (say, adds `!/config/*`), these still can
+# not slip through on the back of it.
+# ------------------------------------------------------------------------------
+.env
+.env.*
+*.pem
+*.key
+*.ppk
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.crt
+*.cer
+*.der
+id_rsa*
+id_ecdsa*
+id_ed25519*
+*.kdbx
+.netrc
+.npmrc
+.pypirc
+credentials
+credentials.*
+*service-account*.json
+*.tfvars
+.terraform/
+.aws/
+.ssh/
+
+# Local, untracked, and deliberately so: the denylist names the very terms it
+# exists to protect. Committing it would publish them. See .github/denylist.example.txt
+.githooks/denylist.local.txt
+
+# Agent + editor local state
+**/.claude/settings.local.json
+.vscode/
+.idea/
+.DS_Store

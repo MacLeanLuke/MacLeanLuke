@@ -1,0 +1,56 @@
+# Denylist TEMPLATE — safe to commit, because it names nothing real.
+#
+# Copy it, fill it in, and keep the copy out of git:
+#
+#   cp .github/denylist.example.txt .githooks/denylist.local.txt
+#
+# .gitignore already refuses to track denylist.local.txt. That is the whole
+# point: a committed denylist is a public, searchable index of exactly which
+# words someone considers sensitive, which is worse than having no denylist.
+#
+# For CI, put the same content in a repo secret named GUARD_DENYLIST:
+#   gh secret set GUARD_DENYLIST < .githooks/denylist.local.txt
+#
+# Matching is case-insensitive fixed-string, one term per line. No regex, no
+# escaping. Lines starting with # are ignored.
+#
+# Keep terms specific enough not to fire constantly. "Acme" is a good entry;
+# "data" is not — a rule that cries wolf gets bypassed, and a bypassed rule
+# protects nothing.
+
+# ── Employers, past and present ───────────────────────────────────────────────
+# The company name itself is usually fine to say publicly (it is on your
+# résumé). What you are guarding is the layer beneath it: internal system
+# names, service names, team names, repo names, product codenames.
+#
+# YourEmployerInternalPlatformName
+# some-internal-service
+# ProjectCodename
+
+# ── Clients and counterparties ────────────────────────────────────────────────
+# Often the most contractually sensitive category. Anyone whose name appears in
+# an MSA or NDA you have signed.
+#
+# BigClientCo
+# CLIENT-1234
+
+# ── Internal infrastructure ───────────────────────────────────────────────────
+# Hostnames, bastion names, VPC/account identifiers, internal domains, database
+# names, queue names, S3 buckets.
+#
+# prod-db-primary
+# 10.0.
+# your-internal-domain.net
+# arn:aws:iam::123456789012
+
+# ── Identifiers that leak structure ───────────────────────────────────────────
+# Ticket prefixes, internal URLs, wiki spaces.
+#
+# JIRA-PROJ-
+# confluence.yourcompany
+# yourcompany.slack.com
+
+# ── People ────────────────────────────────────────────────────────────────────
+# Colleagues who have not consented to appearing in your public commit history.
+#
+# (names go in the local copy, obviously, not here)
