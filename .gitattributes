@@ -1,0 +1,12 @@
+# Normalise line endings so a Windows clone can not produce a diff that is
+# invisible in review but changes every line of the guard script.
+* text=auto eol=lf
+
+*.sh text eol=lf
+.githooks/pre-commit text eol=lf
+
+*.png binary
+*.svg text eol=lf
+
+# Keep generated/vendored things out of language stats on the profile page.
+*.svg linguist-detectable=false

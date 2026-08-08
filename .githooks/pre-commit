@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+#
+# Pre-commit guard for a public profile repo.
+#
+# Enable (once, per clone):
+#   git config core.hooksPath .githooks
+#
+# Bypassable with `git commit --no-verify`. That is by design — a hook you can
+# not escape is a hook you will eventually fight. The CI job running the same
+# scanner is the one that actually gates, and it has no --no-verify.
+
+set -euo pipefail
+
+if ! bash scripts/guard.sh; then
+  cat <<'MSG'
+
+  ─────────────────────────────────────────────────────────────────────
+  Commit blocked. This is a public repo — fix the findings above first.
+
+  If a finding is a false positive:
+    • credential shape → add a `guard:allow` comment on that line
+    • new kind of file → allowlist it in .gitignore AND scripts/guard.sh
+
+  If you are certain and in a hurry:
+    git commit --no-verify
+  ...but CI runs the same scan on the pull request and will block the
+  merge, so you have deferred the problem rather than solved it.
+  ─────────────────────────────────────────────────────────────────────
+
+MSG
+  exit 1
+fi

@@ -1,0 +1,62 @@
+name: guard
+
+# The authoritative gate. The local pre-commit hook is a convenience that can be
+# skipped with --no-verify; this can not be skipped, and the branch ruleset makes
+# it a required check before anything merges to main.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  # Lets you re-run the scan against the whole tree after changing the denylist,
+  # without needing a commit to hang it off.
+  workflow_dispatch:
+
+# Deny by default, same principle as .gitignore. This job reads code and reports
+# a status; it has no business writing anything.
+permissions:
+  contents: read
+
+concurrency:
+  group: guard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      # Pinned to a commit SHA, not a tag. Tags are mutable: whoever controls the
+      # action repo can repoint v7 at new code, and it runs here with our token.
+      # Renovate/Dependabot can bump the SHA via PR, which is the point — the
+      # upgrade becomes a reviewable event instead of an invisible one.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Scan tree
+        env:
+          # Injected from repo secrets. Absent on pull requests from forks, which
+          # is correct: fork PRs must never be able to read this. The step below
+          # catches that case explicitly rather than silently scanning with an
+          # empty denylist and reporting green.
+          GUARD_DENYLIST: ${{ secrets.GUARD_DENYLIST }}
+        run: bash scripts/guard.sh --ci
+
+      - name: Verify denylist was actually loaded
+        # A scan that passes because the denylist failed to load is worse than a
+        # failing scan — it is a false all-clear. On any run that has access to
+        # repo secrets, an empty denylist is treated as a broken configuration.
+        if: github.event.pull_request.head.repo.fork != true
+        env:
+          GUARD_DENYLIST: ${{ secrets.GUARD_DENYLIST }}
+        run: |
+          if [ -z "${GUARD_DENYLIST:-}" ]; then
+            echo "::error title=Denylist not configured::The GUARD_DENYLIST secret is empty or unset, so term checking did not run. Set it with: gh secret set GUARD_DENYLIST < .githooks/denylist.local.txt"
+            exit 1
+          fi
+          echo "Denylist loaded: $(printf '%s\n' "$GUARD_DENYLIST" | grep -cve '^[[:space:]]*$' -e '^[[:space:]]*#') active term(s)"

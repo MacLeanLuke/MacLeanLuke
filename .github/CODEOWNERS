@@ -1,0 +1,8 @@
+# Every path in this repo is owned by its subject.
+#
+# Paired with the branch ruleset's "require review from Code Owners", this means
+# no pull request from anyone else can merge without an explicit approval from
+# @MacLeanLuke — including PRs opened by bots or by a compromised token that has
+# push access but is not the owner.
+
+* @MacLeanLuke
