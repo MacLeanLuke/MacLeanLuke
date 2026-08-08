@@ -1,8 +1,16 @@
 # Every path in this repo is owned by its subject.
 #
-# Paired with the branch ruleset's "require review from Code Owners", this means
-# no pull request from anyone else can merge without an explicit approval from
-# @MacLeanLuke — including PRs opened by bots or by a compromised token that has
-# push access but is not the owner.
+# NOTE ON WHAT THIS CURRENTLY DOES: nothing, by necessity.
+#
+# The "main protection" ruleset sets require_code_owner_review = false. That is
+# not an oversight — GitHub does not let you approve your own pull request, so
+# on a single-maintainer repo any code-owner review requirement is an immediate
+# and permanent lockout. The real gate is the required `scan` check, which no
+# one can approve their way past.
+#
+# This file is therefore staged for a future that may not arrive: the moment a
+# second person gets push access, flip require_code_owner_review to true and
+# this starts enforcing. Kept deliberately so that decision is one setting
+# rather than an archaeology exercise.
 
 * @MacLeanLuke
