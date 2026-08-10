@@ -32,6 +32,7 @@
 
 !/.githooks/pre-commit
 !/scripts/*.sh
+!/scripts/*.mjs
 
 !/assets/*.svg
 !/assets/*.png
