@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 150" width="1000" height="150" role="img" aria-label="Luke MacLean — Senior Full Stack and Platform Engineer, Dallas Texas">
+  <!--
+    Light-scheme banner. The dark twin lives in header-dark.svg and the README
+    picks between them with <picture><source media="(prefers-color-scheme: dark)">.
+    That choice is made by the reader's browser, which is the only genuine
+    per-viewer signal a GitHub README gets — camo strips everything else.
+
+    Decorative only. Every word here is repeated as real markdown underneath,
+    because text baked into an SVG is invisible to screen readers and to search.
+  -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+    <text x="0" y="52" font-size="44" font-weight="650" fill="#1f2328" letter-spacing="-0.8">Luke MacLean</text>
+    <text x="0" y="84" font-size="17" font-weight="450" fill="#656d76">Senior Full Stack &amp; Platform Engineer</text>
+
+    <line x1="0" y1="106" x2="1000" y2="106" stroke="#d1d9e0" stroke-width="1" />
+
+    <text x="0" y="132" font-size="13" fill="#656d76"
+          font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace">
+      Dallas, TX
+      <tspan fill="#d1d9e0"> · </tspan>
+      <tspan fill="#0969da">luke-mac.com</tspan>
+      <tspan fill="#d1d9e0"> · </tspan>
+      operator-critical systems, and the boring plumbing that keeps them up
+    </text>
+  </g>
+</svg>
