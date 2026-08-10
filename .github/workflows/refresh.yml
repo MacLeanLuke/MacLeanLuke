@@ -74,10 +74,25 @@ jobs:
 
           # Reuse one long-lived branch so repeated runs update a single PR
           # instead of littering the repo with one per day.
+          #
+          # actions/checkout only fetches the ref it checked out, so there is no
+          # remote-tracking ref for the bot branch and --force-with-lease has
+          # nothing to compare against — it fails "stale info" rather than
+          # silently clobbering. Fetch it explicitly to give the lease a basis;
+          # dropping to a bare --force would trade the safety away instead.
+          git fetch origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" 2>/dev/null || true
+
+          # Always branch from the commit we just built, so the PR is exactly
+          # main plus one README commit and never accumulates old attempts.
           git checkout -B "$BRANCH"
           git add README.md
           git commit -m "Refresh generated README sections"
-          git push --force-with-lease origin "$BRANCH"
+
+          if git rev-parse --verify --quiet "refs/remotes/origin/$BRANCH" >/dev/null; then
+            git push --force-with-lease="$BRANCH:refs/remotes/origin/$BRANCH" origin "$BRANCH"
+          else
+            git push origin "$BRANCH"
+          fi
 
           if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
             echo "Existing PR updated."
