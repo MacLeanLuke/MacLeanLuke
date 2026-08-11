@@ -14,10 +14,10 @@ again — and knowing which of those two you're being asked for.
 
 ---
 
-### Pick your lens
+### More detail, if you want it
 
 <details>
-<summary><b>I'm hiring</b> — the short version</summary>
+<summary><b>Stack &amp; tooling</b></summary>
 
 <br>
 
@@ -31,8 +31,8 @@ again — and knowing which of those two you're being asked for.
 | **Infra** | AWS · GCP · Vercel · Docker · Kubernetes · GitHub Actions |
 | **Certs** | Apollo Graph Developer (Professional) · AWS Certified Cloud Practitioner |
 
-The part that's hard to put on a résumé: being the person who can hold the whole
-path in their head — local, staging, production, front to back — at 11pm, when
+The part that's hard to get across in a bullet list: being the person who can hold
+the whole path in their head — local, staging, production, front to back — at 11pm, when
 something is broken and the fix has to be small enough to be safe.
 
 Work history is on [LinkedIn](https://www.linkedin.com/in/luke-maclean/). Most of
@@ -42,7 +42,7 @@ writeup explaining why it exists.
 </details>
 
 <details>
-<summary><b>I'm an engineer</b> — what I actually care about</summary>
+<summary><b>How I think about the work</b></summary>
 
 <br>
 
@@ -78,7 +78,7 @@ index of precisely which words are sensitive.
 </details>
 
 <details>
-<summary><b>Just show me the code</b></summary>
+<summary><b>Selected code</b></summary>
 
 <br>
 
