@@ -70,30 +70,38 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          REPO="$GITHUB_REPOSITORY"
+          MAIN_SHA=$(git rev-parse HEAD)
 
-          # Reuse one long-lived branch so repeated runs update a single PR
-          # instead of littering the repo with one per day.
+          # The commit is created through the Contents API rather than with
+          # `git commit && git push`, for one reason: main requires signed
+          # commits and a runner has no signing key. Commits written through
+          # this API are signed by GitHub itself, so they satisfy the rule
+          # without a private key ever being stored in a secret.
           #
-          # actions/checkout only fetches the ref it checked out, so there is no
-          # remote-tracking ref for the bot branch and --force-with-lease has
-          # nothing to compare against — it fails "stale info" rather than
-          # silently clobbering. Fetch it explicitly to give the lease a basis;
-          # dropping to a bare --force would trade the safety away instead.
-          git fetch origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" 2>/dev/null || true
+          # It also removes the whole --force-with-lease problem — resetting a
+          # ref is a single atomic call rather than a fetch/checkout/push dance.
 
-          # Always branch from the commit we just built, so the PR is exactly
-          # main plus one README commit and never accumulates old attempts.
-          git checkout -B "$BRANCH"
-          git add README.md
-          git commit -m "Refresh generated README sections"
-
-          if git rev-parse --verify --quiet "refs/remotes/origin/$BRANCH" >/dev/null; then
-            git push --force-with-lease="$BRANCH:refs/remotes/origin/$BRANCH" origin "$BRANCH"
+          # Point the bot branch at current main, creating it the first time.
+          # Always starting from main keeps the PR to exactly one commit instead
+          # of accumulating every earlier attempt.
+          if gh api "repos/$REPO/git/refs/heads/$BRANCH" >/dev/null 2>&1; then
+            gh api -X PATCH "repos/$REPO/git/refs/heads/$BRANCH" \
+              -f sha="$MAIN_SHA" -F force=true >/dev/null
           else
-            git push origin "$BRANCH"
+            gh api -X POST "repos/$REPO/git/refs" \
+              -f ref="refs/heads/$BRANCH" -f sha="$MAIN_SHA" >/dev/null
           fi
+
+          BLOB_SHA=$(gh api "repos/$REPO/contents/README.md?ref=$BRANCH" --jq .sha)
+          gh api -X PUT "repos/$REPO/contents/README.md" \
+            -f message="Refresh generated README sections" \
+            -f content="$(base64 -w0 README.md)" \
+            -f branch="$BRANCH" \
+            -f sha="$BLOB_SHA" >/dev/null
+
+          HEAD_SHA=$(gh api "repos/$REPO/git/refs/heads/$BRANCH" --jq .object.sha)
+          echo "Committed $HEAD_SHA to $BRANCH"
 
           # GitHub deliberately does not start workflow runs for events raised by
           # GITHUB_TOKEN — that is what stops a bot pushing a commit that triggers
@@ -106,11 +114,11 @@ jobs:
           # against the same tree, moments ago — and `set -e` plus a failing
           # guard.sh aborts before ever reaching this line. A red scan can not
           # reach a green status.
-          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/$(git rev-parse HEAD)" \
+          gh api -X POST "repos/$REPO/statuses/$HEAD_SHA" \
             -f state=success \
             -f context=scan \
             -f description="guard.sh passed in the refresh job" \
-            -f target_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            -f target_url="${GITHUB_SERVER_URL}/${REPO}/actions/runs/${GITHUB_RUN_ID}" \
             >/dev/null
 
           if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
