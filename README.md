@@ -105,10 +105,11 @@ index of precisely which words are sensitive.
 <!-- BEGIN:work -->
 | Project | What it is | Writeup |
 | --- | --- | --- |
+| **[all-the-scripts](https://github.com/MacLeanLuke/all-the-scripts)**<br><sub>Shell · today</sub> | A bunch of great scripts that I've developed over time. Everything from environment setup | — |
+| **[neural-tools](https://github.com/MacLeanLuke/neural-tools)**<br><sub>TypeScript · today</sub> | Complete AI productivity toolkit for building MCPs, Claude commands, and AI workflows | [Read](https://techyschmecky.wordpress.com/2026/08/09/neural-tools/) |
+| **[rental-property-analyzer](https://github.com/MacLeanLuke/rental-property-analyzer)**<br><sub>TypeScript · today</sub> | Decide whether to keep or sell a rental property. Live hold-vs-sell analysis in the browser, plus a downloadable Excel workbook where every projection is a live formula. | [Read](https://techyschmecky.wordpress.com/2026/08/09/rental-property-analyzer/) |
+| **[mercy-networks](https://github.com/MacLeanLuke/mercy-networks)**<br><sub>TypeScript · today</sub> | Connects people experiencing homelessness and their caseworkers to shelters, meals, and housing programs via natural-language search. Next.js + Vercel AI SDK + Postgres. | [Read](https://techyschmecky.wordpress.com/2026/08/09/mercy-networks/) |
 | **[page-load-anatomy](https://github.com/MacLeanLuke/page-load-anatomy)**<br><sub>TypeScript · today</sub> | A dissectible model of what actually happens when a browser loads a page. Real protocol arithmetic, not an animation. | [Read](https://techyschmecky.wordpress.com/2026/08/09/page-load-anatomy/) |
-| **[rental-property-analyzer](https://github.com/MacLeanLuke/rental-property-analyzer)**<br><sub>TypeScript · yesterday</sub> | Decide whether to keep or sell a rental property. Live hold-vs-sell analysis in the browser, plus a downloadable Excel workbook where every projection is a live formula. | [Read](https://techyschmecky.wordpress.com/2026/08/09/rental-property-analyzer/) |
-| **[neural-tools](https://github.com/MacLeanLuke/neural-tools)**<br><sub>TypeScript · yesterday</sub> | Complete AI productivity toolkit for building MCPs, Claude commands, and AI workflows | [Read](https://techyschmecky.wordpress.com/2026/08/09/neural-tools/) |
-| **[mercy-networks](https://github.com/MacLeanLuke/mercy-networks)**<br><sub>TypeScript · 2d ago</sub> | Connects people experiencing homelessness and their caseworkers to shelters, meals, and housing programs via natural-language search. Next.js + Vercel AI SDK + Postgres. | [Read](https://techyschmecky.wordpress.com/2026/08/09/mercy-networks/) |
 <!-- END:work -->
 
 ### Latest writing
@@ -122,5 +123,5 @@ index of precisely which words are sensitive.
 ---
 
 <!-- BEGIN:stamp -->
-<sub>Regenerated 2026-08-10 by [`build-readme.mjs`](scripts/build-readme.mjs) · 4 active repos · 5 posts</sub>
+<sub>Regenerated 2026-08-11 by [`build-readme.mjs`](scripts/build-readme.mjs) · 5 active repos · 5 posts</sub>
 <!-- END:stamp -->
