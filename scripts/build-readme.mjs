@@ -48,6 +48,28 @@ const gh = async (path) => {
   return res.json();
 };
 
+/**
+ * WordPress is the CMS, not the destination.
+ *
+ * The API reports canonical links on the wordpress.com host, but the Astro site
+ * serves those same posts on luke-mac.com under the identical `/YYYY/MM/DD/slug/`
+ * path — the permalink structure was preserved precisely so these stay portable.
+ * Readers should land on the site, not the backing CMS.
+ *
+ * Falls back to the original URL if WordPress ever reports a host we do not
+ * recognise, so an unexpected link is left alone rather than silently pointed
+ * somewhere that 404s.
+ */
+const onSite = (link) => {
+  try {
+    const u = new URL(link);
+    if (!/(^|\.)wordpress\.com$/.test(u.hostname)) return link;
+    return new URL(u.pathname + u.search + u.hash, SITE).href;
+  } catch {
+    return link;
+  }
+};
+
 /** WordPress returns titles as rendered HTML, so entities arrive encoded. */
 const decode = (s) =>
   s
@@ -129,7 +151,7 @@ async function main() {
     ...repos.slice(0, 6).map((r) => {
       const post = postBySlug.get(r.name);
       const desc = r.meta.description ?? '—';
-      const writeup = post ? `[Read](${post.link})` : '—';
+      const writeup = post ? `[Read](${onSite(post.link)})` : '—';
       return `| **[${r.name}](https://github.com/${USER}/${r.name})**<br><sub>${r.meta.language ?? '—'} · ${ago(r.last)}</sub> | ${cell(desc)} | ${writeup} |`;
     }),
   ].join('\n');
@@ -146,7 +168,7 @@ async function main() {
       // would read it as local and `toISOString()` would roll it into the next day.
       // The date is already the one to display — just take it.
       const date = p.date.slice(0, 10);
-      return `- **[${cell(decode(p.title.rendered))}](${p.link})** <sub>${date}</sub>`;
+      return `- **[${cell(decode(p.title.rendered))}](${onSite(p.link)})** <sub>${date}</sub>`;
     }),
     `\n<sub>All posts at **[luke-mac.com](${SITE})**.</sub>`,
   ].join('\n');
