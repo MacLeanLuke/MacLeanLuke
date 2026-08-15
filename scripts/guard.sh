@@ -53,7 +53,7 @@ report() {
 # Mirrors the allowlist in .gitignore. Kept as a second, independent check so a
 # `git add -f` (which defeats .gitignore entirely) still gets caught.
 # ==============================================================================
-ALLOWED_PATHS='^(README\.md|LICENSE|\.gitignore|\.gitattributes|\.github/CODEOWNERS|\.github/[^/]+\.md|\.github/denylist\.example\.txt|\.github/workflows/[^/]+\.yml|\.githooks/pre-commit|scripts/[^/]+\.(sh|mjs)|assets/[^/]+\.(svg|png))$'
+ALLOWED_PATHS='^(README\.md|LICENSE|SECURITY\.md|\.gitignore|\.gitattributes|\.github/CODEOWNERS|\.github/[^/]+\.md|\.github/denylist\.example\.txt|\.github/dependabot\.yml|\.github/workflows/[^/]+\.yml|\.githooks/pre-commit|scripts/[^/]+\.(sh|mjs)|assets/[^/]+\.(svg|png))$'
 
 MAX_BYTES=$((2 * 1024 * 1024))
 
