@@ -24,10 +24,12 @@
 !.gitattributes
 !README.md
 !LICENSE
+!SECURITY.md
 
 !/.github/CODEOWNERS
 !/.github/*.md
 !/.github/denylist.example.txt
+!/.github/dependabot.yml
 !/.github/workflows/*.yml
 
 !/.githooks/pre-commit
