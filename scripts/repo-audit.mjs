@@ -47,10 +47,19 @@ const val = (f) => { const i = argv.indexOf(f); return i === -1 ? null : argv[i 
 const OPTS = {
   apply: has('--apply'),
   issues: has('--issues'),
+  writeFiles: has('--write-files'),
+  pinActions: has('--pin-actions'),
   json: has('--json'),
   forks: has('--include-forks'),
   only: val('--repo'),
 };
+
+// One branch per concern. They must not be shared: openFilePr force-resets its
+// branch to the base commit, so two features pointed at one branch would have
+// the second silently discard the first's work.
+const BRANCH_FILES = 'chore/repo-hygiene';
+const BRANCH_PINS = 'chore/pin-actions';
+const BRANCH_TRACK = 'chore/hygiene-checklist';
 
 // ---------------------------------------------------------------------------
 // API
@@ -155,6 +164,16 @@ const CHECKS = [
       body: { security_and_analysis: { secret_scanning_push_protection: { status: 'enabled' } } },
     }),
     remedy: 'Blocks the push instead of reporting afterwards — the difference between a near-miss and a credential rotation.',
+  },
+
+  {
+    id: 'private-reporting',
+    section: 'Disclosure',
+    title: 'Private vulnerability reporting enabled',
+    auto: true,
+    passes: (r) => r.privateReporting,
+    fix: (r) => api(`repos/${OWNER}/${r.name}/private-vulnerability-reporting`, { method: 'PUT' }),
+    remedy: 'Gives a researcher a private channel. Without it their only option is a public issue that discloses the flaw to everyone before a fix exists.',
   },
 
   // ---- Branch protection --------------------------------------------------
@@ -270,7 +289,7 @@ const CHECKS = [
 async function inspect(name) {
   const { body: meta } = await api(`repos/${OWNER}/${name}`);
 
-  const [readme, vuln, rulesets, actionsPerms, wfList, secMd, secMdGh, depCfg] = await Promise.all([
+  const [readme, vuln, rulesets, actionsPerms, wfList, secMd, secMdGh, depCfg, pkg] = await Promise.all([
     api(`repos/${OWNER}/${name}/readme`),
     api(`repos/${OWNER}/${name}/vulnerability-alerts`),
     api(`repos/${OWNER}/${name}/rulesets`),
@@ -279,6 +298,7 @@ async function inspect(name) {
     exists(`repos/${OWNER}/${name}/contents/SECURITY.md`),
     exists(`repos/${OWNER}/${name}/contents/.github/SECURITY.md`),
     exists(`repos/${OWNER}/${name}/contents/.github/dependabot.yml`),
+    exists(`repos/${OWNER}/${name}/contents/package.json`),
   ]);
 
   const workflows = Array.isArray(wfList.body)
@@ -288,10 +308,12 @@ async function inspect(name) {
   // Scan workflow sources for `uses:` referencing a tag or branch rather than a
   // 40-char SHA. Actions in the same repo (./path) are exempt.
   const unpinned = new Set();
+  const workflowSources = {};
   for (const wf of workflows) {
     const { body: file } = await api(`repos/${OWNER}/${name}/contents/${wf.path}`);
     if (!file?.content) continue;
     const src = Buffer.from(file.content, 'base64').toString('utf8');
+    workflowSources[wf.path] = src;
     for (const m of src.matchAll(/^\s*-?\s*uses:\s*['"]?([^'"\s#]+)/gm)) {
       const ref = m[1];
       if (ref.startsWith('./') || ref.startsWith('docker://')) continue;
@@ -306,13 +328,193 @@ async function inspect(name) {
     meta,
     readmeBytes: readme.status === 200 ? (readme.body.size ?? 0) : 0,
     vulnAlerts: vuln.status === 204,
+    privateReporting: meta.security_and_analysis?.private_vulnerability_reporting?.status === 'enabled',
     rulesets: Array.isArray(rulesets.body) ? rulesets.body : [],
     actionsPerms: actionsPerms.status === 200 ? actionsPerms.body : null,
     workflows,
+    workflowSources,
     unpinnedActions: [...unpinned],
     hasSecurityMd: secMd || secMdGh,
     hasDependabotConfig: depCfg,
+    hasPackageJson: pkg,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Writing files into another repository
+//
+// Everything goes through a pull request on a named branch. Never a direct
+// push: each repo runs whatever CI it has against the change, and a human sees
+// it before it lands. Contents-API commits are signed by GitHub, which also
+// satisfies any repo that requires signatures.
+// ---------------------------------------------------------------------------
+async function openFilePr(repo, { branch, files, title, body }) {
+  const base = repo.meta.default_branch;
+  const { body: baseRef } = await api(`repos/${OWNER}/${repo.name}/git/ref/heads/${base}`);
+  const baseSha = baseRef?.object?.sha;
+  if (!baseSha) return { action: 'failed', why: 'could not read the default branch' };
+
+  const refPath = `repos/${OWNER}/${repo.name}/git/refs/heads/${branch}`;
+  if ((await api(refPath)).status === 200) {
+    await api(refPath, { method: 'PATCH', body: { sha: baseSha, force: true } });
+  } else {
+    const made = await api(`repos/${OWNER}/${repo.name}/git/refs`, {
+      method: 'POST', body: { ref: `refs/heads/${branch}`, sha: baseSha },
+    });
+    if (!made.ok) return { action: 'failed', why: `branch: HTTP ${made.status}` };
+  }
+
+  let wrote = 0;
+  for (const [path, content] of Object.entries(files)) {
+    const current = await api(`repos/${OWNER}/${repo.name}/contents/${path}?ref=${branch}`);
+    const existingSha = current.status === 200 ? current.body.sha : undefined;
+    const res = await api(`repos/${OWNER}/${repo.name}/contents/${path}`, {
+      method: 'PUT',
+      body: {
+        message: title,
+        content: Buffer.from(content, 'utf8').toString('base64'),
+        branch,
+        ...(existingSha ? { sha: existingSha } : {}),
+      },
+    });
+    if (res.ok) wrote++;
+  }
+
+  if (wrote === 0) return { action: 'nothing-to-write' };
+
+  const open = await api(
+    `repos/${OWNER}/${repo.name}/pulls?head=${OWNER}:${branch}&base=${base}&state=open`,
+  );
+  if (Array.isArray(open.body) && open.body.length) {
+    return { action: 'updated', number: open.body[0].number, files: wrote };
+  }
+
+  const pr = await api(`repos/${OWNER}/${repo.name}/pulls`, {
+    method: 'POST', body: { title, head: branch, base, body },
+  });
+  return pr.ok
+    ? { action: 'opened', number: pr.body.number, files: wrote }
+    : { action: 'failed', why: `pr: HTTP ${pr.status}`, files: wrote };
+}
+
+const securityMd = (repo) => `# Security Policy
+
+## Reporting a vulnerability
+
+Please **do not open a public issue** for a security problem. That discloses it
+to everyone before there is a fix.
+
+Use GitHub's private vulnerability reporting instead:
+
+**[Report a vulnerability](https://github.com/${OWNER}/${repo.name}/security/advisories/new)**
+
+That opens a channel visible only to the maintainer, so no contact address has
+to be published here for scrapers to harvest.
+
+## Scope
+
+A personal project maintained by one person. There is no bug bounty and no
+formal response SLA. Reports are still genuinely welcome — being told about a
+problem is always better than not being told.
+
+## Supported versions
+
+The default branch is the only supported version. Fixes land there and are not
+backported.
+`;
+
+/**
+ * Ecosystems are detected, not assumed: npm only where a manifest exists,
+ * github-actions only where workflows exist. A config listing an ecosystem the
+ * repo does not use produces a permanent Dependabot error on the repo.
+ */
+function dependabotYml(repo) {
+  const blocks = [];
+  if (repo.hasPackageJson) blocks.push('npm');
+  if (repo.workflows.length) blocks.push('github-actions');
+  if (blocks.length === 0) return null;
+
+  return `# Generated by scripts/repo-audit.mjs — ecosystems detected from repo contents.
+version: 2
+updates:
+${blocks.map((e) => `  - package-ecosystem: ${e}
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+`).join('')}`;
+}
+
+// ---------------------------------------------------------------------------
+// Pinning actions to commit SHAs
+// ---------------------------------------------------------------------------
+const shaCache = new Map();
+
+/** Resolve owner/repo@ref to a commit SHA, dereferencing annotated tags. */
+async function resolveSha(actionRef) {
+  if (shaCache.has(actionRef)) return shaCache.get(actionRef);
+
+  const at = actionRef.lastIndexOf('@');
+  const [nameWithPath, ref] = [actionRef.slice(0, at), actionRef.slice(at + 1)];
+  const [o, r] = nameWithPath.split('/');
+  if (!o || !r) return null;
+
+  let sha = null;
+  for (const kind of ['tags', 'heads']) {
+    const res = await api(`repos/${o}/${r}/git/ref/${kind}/${ref}`);
+    if (res.status !== 200) continue;
+    sha = res.body.object.sha;
+    if (res.body.object.type === 'tag') {
+      const deref = await api(`repos/${o}/${r}/git/tags/${sha}`);
+      if (deref.status === 200) sha = deref.body.object.sha;
+    }
+    break;
+  }
+  shaCache.set(actionRef, sha);
+  return sha;
+}
+
+async function pinWorkflows(repo) {
+  const files = {};
+  const changes = [];
+
+  for (const [path, src] of Object.entries(repo.workflowSources)) {
+    let out = src;
+    for (const ref of new Set(repo.unpinnedActions)) {
+      if (!src.includes(ref)) continue;
+      const sha = await resolveSha(ref);
+      if (!sha) continue;
+      const tag = ref.slice(ref.lastIndexOf('@') + 1);
+      // Keep the human-readable version in a trailing comment; Dependabot reads
+      // it to know what the pin corresponds to when proposing a bump.
+      out = out.replaceAll(
+        new RegExp(`${ref.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}(?!\\\\S)`, 'g'),
+        `${ref.slice(0, ref.lastIndexOf('@'))}@${sha} # ${tag}`,
+      );
+      changes.push(`${ref} → ${sha.slice(0, 10)}`);
+    }
+    if (out !== src) files[path] = out;
+  }
+
+  if (Object.keys(files).length === 0) return { action: 'nothing-to-write' };
+
+  const res = await openFilePr(repo, {
+    branch: BRANCH_PINS,
+    files,
+    title: 'Pin GitHub Actions to commit SHAs',
+    body: [
+      'Tags are mutable. Whoever controls an action repository can repoint `v4` at new code, which then runs in this repo with its token.',
+      '',
+      'Pinned to full commit SHAs, with the original tag kept as a trailing comment so Dependabot can still propose version bumps as reviewable pull requests.',
+      '',
+      '```',
+      ...changes.map((c) => c),
+      '```',
+      '',
+      'Generated by `scripts/repo-audit.mjs --pin-actions`. Check CI on this PR before merging — that is the point of routing it through a PR rather than a push.',
+    ].join('\n'),
+  });
+  return { ...res, changes };
 }
 
 // ---------------------------------------------------------------------------
@@ -353,8 +555,33 @@ function issueBody(repo, failing) {
   return out.join('\n');
 }
 
+/**
+ * Where a repo has issues switched off there is nowhere to file, and silently
+ * skipping means that repo is the one nobody tracks. Commit the same checklist
+ * into the repo instead, as a file, via the same pull-request path.
+ */
+async function syncTrackingFile(repo, failing) {
+  if (failing.length === 0) return { action: 'none' };
+
+  const body = [
+    '# Repository hygiene',
+    '',
+    `Issues are disabled on this repository, so the audit checklist lives here instead.`,
+    '',
+    issueBody(repo, failing).replace(`${MARKER}\n\n`, ''),
+    '',
+  ].join('\n');
+
+  return openFilePr(repo, {
+    branch: BRANCH_TRACK,
+    files: { '.github/HYGIENE.md': body },
+    title: `Repo hygiene: ${failing.length} item${failing.length === 1 ? '' : 's'} outstanding`,
+    body: 'Issues are disabled here, so the audit checklist is committed as `.github/HYGIENE.md`. Regenerated in place on later runs.',
+  });
+}
+
 async function syncIssue(repo, failing) {
-  if (!repo.meta.has_issues) return { action: 'skipped', why: 'issues disabled' };
+  if (!repo.meta.has_issues) return syncTrackingFile(repo, failing);
 
   const search = await api(
     `search/issues?q=${encodeURIComponent(`repo:${OWNER}/${repo.name} is:issue is:open in:body "${MARKER}"`)}`,
@@ -436,11 +663,41 @@ async function main() {
       }
     }
 
+    // Boilerplate the repo is missing. Content is either identical everywhere
+    // or derived from what is already in the repo, so nothing here is a guess.
+    let filePr = { action: 'not-requested' };
+    if (OPTS.writeFiles) {
+      const files = {};
+      if (!repo.hasSecurityMd) files['SECURITY.md'] = securityMd(repo);
+      if (!repo.hasDependabotConfig) {
+        const yml = dependabotYml(repo);
+        if (yml) files['.github/dependabot.yml'] = yml;
+      }
+      filePr = Object.keys(files).length
+        ? await openFilePr(repo, {
+            branch: BRANCH_FILES,
+            files,
+            title: 'Add SECURITY.md and Dependabot config',
+            body: [
+              'Boilerplate this repo was missing. Neither file needs a judgement call:',
+              '',
+              '- `SECURITY.md` points at GitHub private vulnerability reporting, so no contact address is published for scrapers.',
+              '- `.github/dependabot.yml` lists only the ecosystems actually detected in this repo — a config naming an unused ecosystem produces a permanent Dependabot error.',
+              '',
+              'Generated by `scripts/repo-audit.mjs --write-files`.',
+            ].join('\n'),
+          })
+        : { action: 'nothing-to-write' };
+    }
+
+    let pins = { action: 'not-requested' };
+    if (OPTS.pinActions && repo.unpinnedActions.length) pins = await pinWorkflows(repo);
+
     const needsIssue = results.filter((r) => r.state === 'fail').map((r) => r.check);
     let issue = { action: 'not-requested' };
     if (OPTS.issues) issue = await syncIssue(repo, needsIssue);
 
-    report.push({ repo: repo.name, results, issue });
+    report.push({ repo: repo.name, results, issue, filePr, pins });
 
     if (OPTS.json) continue;
 
@@ -458,9 +715,10 @@ async function main() {
       console.log(`  ${mark}  ${check.title}${status ? ` ${C.dim}(HTTP ${status})${C.o}` : ''}`);
     }
 
-    if (OPTS.issues && issue.action !== 'none') {
-      const note = issue.number ? `#${issue.number}` : issue.why ?? '';
-      console.log(`  ${C.dim}issue ${issue.action} ${note}${C.o}`);
+    for (const [label, r] of [['files', filePr], ['pins', pins], ['issue', issue]]) {
+      if (r.action === 'not-requested' || r.action === 'none' || r.action === 'nothing-to-write') continue;
+      const note = r.number ? `#${r.number}` : (r.why ?? '');
+      console.log(`  ${C.dim}${label} ${r.action} ${note}${C.o}`);
     }
     console.log();
   }
